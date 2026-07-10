@@ -244,6 +244,8 @@ struct ModFunctionTable {
 
 #if RETRO_MOD_LOADER_VER >= 3
     // Mod hooks (Public Functions override)
+    int32 (*HookFunction)(void *functionPtr, void **originalPtr);
+    void (*UnHookFunction)(void *functionPtr, void **originalPtr);
     void (*HookPublicFunction)(const char *id, const char *functionName, void *functionPtr, void **originalPtr);
 
     // Platform info

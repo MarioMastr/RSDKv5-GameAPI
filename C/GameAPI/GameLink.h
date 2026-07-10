@@ -1384,6 +1384,8 @@ typedef struct {
 #endif
 #if RETRO_MOD_LOADER_VER >= 3
     // Mod hooks (Public Functions override)
+    int32 (*HookFunction)(void *functionPtr, void **originalPtr);
+    void (*UnHookFunction)(void *functionPtr, void **originalPtr);
     void (*HookPublicFunction)(const char *id, const char *functionName, void *functionPtr, void **originalPtr);
 
     // Platform info
@@ -1993,6 +1995,15 @@ typedef struct {
 #if RETRO_MOD_LOADER_VER >= 3
 
 // Generic hook
+#define DEFINE_HOOK_FUNC(name, returnType, location, ...)                        \
+    static returnType (*Original_##name)(__VA_ARGS__);                               \
+    static returnType Hook_##name(__VA_ARGS__);                                      \
+    static void RegisterHook_##name(void) {                                          \
+        Original_##name = reinterpret_cast<returnType (*)(__VA_ARGS__)>(location);       \
+        Mod.HookFunction((void *)&Hook_##name, location); \
+    }                                                                                \
+    static returnType Hook_##name(__VA_ARGS__)
+
 #define DEFINE_PUBLIC_HOOK_FUNC(modID, name, returnType, ...)                        \
     static returnType (*Original_##name)(__VA_ARGS__);                               \
     static returnType Hook_##name(__VA_ARGS__);                                      \
@@ -2009,6 +2020,9 @@ typedef struct {
 
 // Register a defined hook of the same name
 #define REGISTER_HOOK_FUNC(name) do { RegisterHook_##name(); } while (0)
+
+// Unhook a defined hook
+#define UNHOOK_FUNC(name) do { Mod.UnHookFunction((void *)&Hook_##name, (void**)&Original_##name); } while (0)
 
 #endif
 #endif

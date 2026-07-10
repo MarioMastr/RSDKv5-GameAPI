@@ -118,16 +118,29 @@ inline void Hook(const char *id, const char *functionName, void *functionPtr, vo
 {
     modTable->HookPublicFunction(id, functionName, functionPtr, originalPtr);
 }
+inline void Hook(void *functionPtr, void **originalPtr)
+{
+    modTable->HookFunction(functionPtr, originalPtr);
+}
+inline void UnHook(void *functionPtr, void **originalPtr)
+{
+    modTable->UnHookFunction(functionPtr, originalPtr);
+}
 
 template <typename Derived> class HookContainer
 {
 public:
-    constexpr HookContainer(const char *name, const char *modID = nullptr) : name__(name), modID__(modID) {}
+    constexpr HookContainer(const char *name, const char *modID = nullptr, void *location = nullptr) : name__(name), modID__(modID), location__(location) {}
 
     static void Register()
     {
         Derived instance = {};
-        PublicFunctions::Hook(instance.modID__, instance.name__, reinterpret_cast<void *>(&Derived::Implementation), reinterpret_cast<void **>(&instance.original__));
+        if (instance.location__) {
+            instance.original__ = instance.location__;
+            PublicFunctions::Hook(reinterpret_cast<void *>(&Derived::Implementation), reinterpret_cast<void **>(&instance.original__));
+        }
+        else
+            PublicFunctions::Hook(instance.modID__, instance.name__, reinterpret_cast<void *>(&Derived::Implementation), reinterpret_cast<void **>(&instance.original__));
     }
 
     template <typename... Args> static decltype(auto) Original(Args &&...args)
@@ -138,9 +151,15 @@ public:
         return _original(std::forward<Args>(args)...);
     }
 
+    static void UnHook()
+    {
+        PublicFunctions::UnHook(reinterpret_cast<void *>(&Derived::Implementation), reinterpret_cast<void **>(&original__));
+    }
+
 protected:
     const char *modID__;
     const char *name__;
+    const void *location__;
     inline static void *original__ = nullptr;
 };
 #endif
@@ -284,6 +303,12 @@ extern const char *modID;
 
 #if RETRO_MOD_LOADER_VER >= 3
 // Declare a generic hook
+#define DECLARE_HOOK_FUNC(name, type, returnType, address, ...)                                                                                 \
+    struct type : RSDK::Mod::PublicFunctions::HookContainer<type> {                                                                                        \
+        type() : HookContainer(name, address) {}                                                                                                       \
+        static returnType Implementation(__VA_ARGS__);                                                                                               \
+    };
+
 #define DECLARE_PUBLIC_HOOK_FUNC(modID, name, type, returnType, ...)                                                                                 \
     struct type : RSDK::Mod::PublicFunctions::HookContainer<type> {                                                                                        \
         type() : HookContainer(name, modID) {}                                                                                                       \
@@ -297,10 +322,14 @@ extern const char *modID;
 #define DECLARE_MOD_HOOK_FUNC(modID, name, type, returnType, ...) DECLARE_PUBLIC_HOOK_FUNC(modID, name, type, returnType, __VA_ARGS__)
 
 // Define a generic hook
+#define DEFINE_HOOK_FUNC(name, returnType, ...) returnType name::Implementation(__VA_ARGS__)
 #define DEFINE_PUBLIC_HOOK_FUNC(name, returnType, ...) returnType name::Implementation(__VA_ARGS__)
 
 // Register a defined hook of the same name
 #define REGISTER_HOOK_FUNC(name) name::Register()
+
+// Unhook a defined hook
+#define UNHOOK_FUNC(name) name::UnHook()
 
 #endif // !RETRO_MOD_LOADER_VER
 
